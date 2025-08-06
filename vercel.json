@@ -1,0 +1,14 @@
+{
+  "name": "hyperevm-perpetual",
+  "version": 2,
+  "routes": [
+    {
+      "src": "/arena_data.json",
+      "dest": "/arena_data.json"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
