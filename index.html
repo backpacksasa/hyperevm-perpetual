@@ -9,6 +9,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
+  <!-- Privy SDK for seamless wallet connections on all browsers -->
+  <script src="https://auth.privy.io/js/privy.js"></script>
+  
   <!-- Vercel Analytics -->
   <script>
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
@@ -77,19 +80,47 @@
       const OWNER_WALLET_ADDRESS = "0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c"; // Owner wallet (ending in 7048)
       console.log('🔗 Using owner wallet address:', OWNER_WALLET_ADDRESS);
       
-      // Live visitor counter simulation
-      const [visitorCount, setVisitorCount] = useState(3);
+      // Live visitor counter simulation with activity notifications
+      const [visitorCount, setVisitorCount] = useState(8);
+      const [recentTrade, setRecentTrade] = useState(null);
+      const [tradingAlert, setTradingAlert] = useState(null);
       
       useEffect(() => {
-        // Start with 3-8 users online
-        const initialCount = Math.floor(Math.random() * 6) + 3;
+        // Start with 8-15 users online (higher activity)
+        const initialCount = Math.floor(Math.random() * 8) + 8;
         setVisitorCount(initialCount);
+        
+        // Show fake trading activity every 15-45 seconds to create FOMO
+        const tradeNotifications = [
+          "🟢 User bought $2,847 HYPE",
+          "🟢 User bought $1,293 UBTC", 
+          "🟢 User bought $876 LHYPE",
+          "🟢 User bought $3,456 UETH",
+          "🟢 User bought $657 UPUMP",
+          "🟢 User bought $4,129 HYPE",
+          "🟢 User bought $892 kHYPE"
+        ];
+        
+        const showTradeAlert = () => {
+          const randomTrade = tradeNotifications[Math.floor(Math.random() * tradeNotifications.length)];
+          setTradingAlert(randomTrade);
+          
+          setTimeout(() => {
+            setTradingAlert(null);
+          }, 4000); // Show for 4 seconds
+        };
+        
+        // Show first alert after 3 seconds
+        setTimeout(showTradeAlert, 3000);
+        
+        // Then show alerts every 15-45 seconds
+        const tradeInterval = setInterval(showTradeAlert, Math.random() * 30000 + 15000);
         
         // Update visitor count every 10-30 seconds with realistic changes
         const visitorInterval = setInterval(() => {
           setVisitorCount(prev => {
             const change = Math.floor(Math.random() * 5) - 2; // -2 to +2
-            const newCount = Math.max(1, Math.min(15, prev + change));
+            const newCount = Math.max(5, Math.min(18, prev + change)); // 5-18 users
             
             // Update the DOM counter if element exists
             const counterEl = document.getElementById('visitorCount');
@@ -101,7 +132,10 @@
           });
         }, Math.random() * 20000 + 10000); // 10-30 seconds
         
-        return () => clearInterval(visitorInterval);
+        return () => {
+          clearInterval(visitorInterval);
+          clearInterval(tradeInterval);
+        };
       }, []);
       
       // Real-time price updates using CoinGecko API
@@ -477,10 +511,43 @@
         ctx.fillText(priceText, width - paddingRight, currentPriceY + 4);
       };
       
-      // Wallet functions
+      // Enhanced Privy wallet connection for ALL browsers (Chrome, Safari, mobile)
       const connectWallet = async () => {
+        console.log('🔗 Connecting wallet with Privy for mobile compatibility...');
+        
+        // Try Privy first for seamless mobile experience
+        if (window.Privy) {
+          try {
+            console.log('🚀 Using Privy for seamless connection...');
+            
+            const user = await window.Privy.loginWithWallet();
+            
+            if (user && user.wallet) {
+              console.log('✅ Privy wallet connected:', user.wallet.address);
+              setWalletAddress(user.wallet.address);
+              setWalletConnected(true);
+              
+              // Track successful connection
+              if (typeof trackWalletConnection === 'function') {
+                trackWalletConnection(user.wallet.address);
+              }
+              
+              // Switch to HyperEVM
+              await switchToHyperEVM();
+              await updateBalance(user.wallet.address);
+              
+              return;
+            }
+          } catch (error) {
+            console.log('Privy fallback to MetaMask:', error.message);
+          }
+        }
+        
+        // Fallback to MetaMask if Privy fails
         if (typeof window.ethereum !== 'undefined') {
           try {
+            console.log('🔄 Fallback: Using MetaMask...');
+            
             await window.ethereum.request({ method: 'eth_requestAccounts' });
             const accounts = await window.ethereum.request({ method: 'eth_accounts' });
             
@@ -488,40 +555,43 @@
               setWalletAddress(accounts[0]);
               setWalletConnected(true);
               
-              // Track wallet connection for analytics
+              // Track wallet connection
               if (typeof trackWalletConnection === 'function') {
                 trackWalletConnection(accounts[0]);
               }
               
-              // Switch to HyperEVM network
-              try {
-                await window.ethereum.request({
-                  method: 'wallet_switchEthereumChain',
-                  params: [{ chainId: '0x3E7' }], // Chain 999
-                });
-              } catch (switchError) {
-                if (switchError.code === 4902) {
-                  await window.ethereum.request({
-                    method: 'wallet_addEthereumChain',
-                    params: [{
-                      chainId: '0x3E7',
-                      chainName: 'Hyperliquid',
-                      nativeCurrency: { name: 'HYPE', symbol: 'HYPE', decimals: 18 },
-                      rpcUrls: ['https://rpc.hyperliquid.xyz/evm'],
-                      blockExplorerUrls: ['https://hyperevmscan.io/']
-                    }]
-                  });
-                }
-              }
-              
-              // Get balance
+              await switchToHyperEVM();
               await updateBalance(accounts[0]);
             }
           } catch (error) {
-            console.error('Error connecting wallet:', error);
+            console.error('MetaMask connection error:', error);
           }
         } else {
-          alert('MetaMask is not installed!');
+          // Enhanced mobile connection instructions
+          alert('For mobile: Open this link in Trust Wallet, MetaMask app, or Coinbase Wallet browser to connect and trade');
+        }
+      };
+      
+      // HyperEVM network switch function
+      const switchToHyperEVM = async () => {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x3E7' }], // Chain 999
+          });
+        } catch (switchError) {
+          if (switchError.code === 4902) {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: '0x3E7',
+                chainName: 'HyperEVM',
+                nativeCurrency: { name: 'HYPE', symbol: 'HYPE', decimals: 18 },
+                rpcUrls: ['https://rpc.hyperliquid.xyz/evm'],
+                blockExplorerUrls: ['https://hyperevmscan.io/']
+              }]
+            });
+          }
         }
       };
       
@@ -1244,16 +1314,35 @@
                     <div className="text-lg font-bold text-green-400">Connected</div>
                   </div>
                 ) : (
-                  <button
-                    onClick={connectWallet}
-                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-sm text-white"
-                  >
-                    Connect Wallet
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right text-xs">
+                      <div className="text-yellow-400 font-medium">⚡ HIGH VOLUME</div>
+                      <div className="text-gray-400">Connect to trade</div>
+                    </div>
+                    <button
+                      onClick={connectWallet}
+                      className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 px-6 py-2 rounded-lg text-sm text-white font-medium shadow-lg transform hover:scale-105 transition-all animate-pulse"
+                    >
+                      📱 Connect Wallet
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
           </header>
+          
+          {/* Trading Activity Alert Banner */}
+          {tradingAlert && (
+            <div className="bg-gradient-to-r from-green-600 to-green-500 text-white p-3 m-4 rounded-lg shadow-lg border-l-4 border-green-300 animate-pulse">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                  <span className="font-medium text-sm">{tradingAlert}</span>
+                </div>
+                <div className="text-xs bg-green-700 px-2 py-1 rounded">LIVE</div>
+              </div>
+            </div>
+          )}
           
           {/* Token List */}
           <main className="p-4">
