@@ -77,6 +77,33 @@
       const OWNER_WALLET_ADDRESS = "0xf96dd9f99c9bb2b40fbdc17e0ede7c3bfe50656c"; // Owner wallet (ending in 7048)
       console.log('🔗 Using owner wallet address:', OWNER_WALLET_ADDRESS);
       
+      // Live visitor counter simulation
+      const [visitorCount, setVisitorCount] = useState(3);
+      
+      useEffect(() => {
+        // Start with 3-8 users online
+        const initialCount = Math.floor(Math.random() * 6) + 3;
+        setVisitorCount(initialCount);
+        
+        // Update visitor count every 10-30 seconds with realistic changes
+        const visitorInterval = setInterval(() => {
+          setVisitorCount(prev => {
+            const change = Math.floor(Math.random() * 5) - 2; // -2 to +2
+            const newCount = Math.max(1, Math.min(15, prev + change));
+            
+            // Update the DOM counter if element exists
+            const counterEl = document.getElementById('visitorCount');
+            if (counterEl) {
+              counterEl.textContent = newCount;
+            }
+            
+            return newCount;
+          });
+        }, Math.random() * 20000 + 10000); // 10-30 seconds
+        
+        return () => clearInterval(visitorInterval);
+      }, []);
+      
       // Real-time price updates using CoinGecko API
       const updateTokenPrices = async (tokenList) => {
         console.log('🔄 Fetching real cryptocurrency prices...');
@@ -1189,6 +1216,16 @@
                 <div>
                   <h1 className="text-xl font-bold">HyperEVM Perpetual</h1>
                   <p className="text-sm text-gray-400">HyperEVM Ecosystem</p>
+                </div>
+                
+                {/* Live Visitor Counter */}
+                <div className="ml-4 bg-green-900 bg-opacity-30 border border-green-500 rounded px-3 py-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-green-400 font-mono">
+                      <span id="visitorCount">{visitorCount}</span> Online
+                    </span>
+                  </div>
                 </div>
 
               </div>
