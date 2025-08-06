@@ -8,6 +8,40 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Vercel Analytics -->
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="https://va.vercel-scripts.com/v1/script.js"></script>
+  
+  <!-- Google Analytics (Alternative tracking) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-HYPEREVM2025"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-HYPEREVM2025');
+    
+    // Track HyperEVM trading events
+    function trackTrade(action, token, amount) {
+      gtag('event', 'trade_action', {
+        'action': action,
+        'token': token,
+        'amount': amount,
+        'platform': 'HyperEVM_Perpetual'
+      });
+    }
+    
+    // Track wallet connections
+    function trackWalletConnection(address) {
+      gtag('event', 'wallet_connected', {
+        'wallet_address': address.substring(0, 8) + '...',
+        'platform': 'HyperEVM_Perpetual'
+      });
+    }
+  </script>
+  
   <style>
     body { margin: 0; background: #111827; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
   </style>
@@ -427,6 +461,11 @@
               setWalletAddress(accounts[0]);
               setWalletConnected(true);
               
+              // Track wallet connection for analytics
+              if (typeof trackWalletConnection === 'function') {
+                trackWalletConnection(accounts[0]);
+              }
+              
               // Switch to HyperEVM network
               try {
                 await window.ethereum.request({
@@ -583,6 +622,11 @@
             
             console.log('Transaction sent:', tx);
             
+            // Track buy trade for analytics
+            if (typeof trackTrade === 'function') {
+              trackTrade('buy', selectedToken.symbol, transferAmount);
+            }
+            
             const newPosition = {
               id: Date.now(),
               token: selectedToken.symbol,
@@ -669,6 +713,11 @@
             });
             
             console.log('Sell transaction recorded:', tx);
+            
+            // Track sell trade for analytics
+            if (typeof trackTrade === 'function') {
+              trackTrade('sell', selectedToken.symbol, amount);
+            }
             
             const newPosition = {
               id: Date.now(),
